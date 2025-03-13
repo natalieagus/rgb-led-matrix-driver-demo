@@ -1,0 +1,64 @@
+module manual_mode (
+    input clk,              // 100MHz clock
+    input rst,            // reset button (active low)
+    output led[8],          // 8 user controllable LEDs
+    output io_led[3][8],    // LEDs on IO Shield
+    output io_segment[8],   // 7-segment LEDs on IO Shield
+    output io_select[4],    // Digit select on IO Shield
+    input io_button[5],     // 4 buttons on IO Shield
+    input io_dip[3][8],      // DIP switches on IO Shield
+    
+    // to matrix. See custom.acf for pins
+    output red0,
+    output green0, 
+    output blue0,
+    output red1,
+    output green1,
+    output blue1,
+    output latch, 
+    output blank, // also known as oe
+    output sclk_out,
+    output address[5] // row address current write to LED matrix
+) {
+    
+    
+    .clk(clk) {
+        .rst(rst){
+            rgb_led_matrix_driver driver
+        }
+    }
+    
+    always {
+        
+        led = 8h00              // turn LEDs off
+        
+        io_led = 3x{{8h00}}
+        io_segment = 8hff
+        io_select = 4hf
+        
+        driver.data = 6b100100 // Turns all pixels blue. Change it to the output of some RAM unit or dff based on your project
+        red0 = driver.red0
+        red1 = driver.red1
+        green0 = driver.green0
+        green1 = driver.green1
+        blue0 = driver.blue0
+        blue1 = driver.blue1
+        latch = driver.latch
+        sclk_out = driver.sclk_out
+        blank = driver.blank
+        address = driver.address
+        
+        led[3:0] = driver.address
+        led[7] = driver.sclk_out
+        io_led[0][0] = driver.red0
+        io_led[0][1] = driver.green0
+        io_led[0][2] = driver.blue0
+        io_led[0][3] = driver.red1
+        io_led[0][4] = driver.green1
+        io_led[0][5] = driver.blue1
+        
+        
+        io_led[1][3:0] = driver.address
+        io_led[2] = driver.debug
+    }
+}

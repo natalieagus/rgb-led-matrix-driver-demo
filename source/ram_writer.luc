@@ -1,0 +1,154 @@
+// This module is a custom module to load specific data to the RAM
+// You dont have to understand what data is specifically made, except to load data to our matrix_ram
+// DO NOT COPY this module blindly, it's not meant for general purpose
+
+module ram_writer #(
+    // 32 by 64 LED matrix by default, separated into top-16 rows and bottom 16-rows
+    // both halves row i are written together for all rows 0 to 15 in a rapid loop 
+    ADDRESS_SIZE = 4 : ADDRESS_SIZE > 0, //width of the address field (ABCD signals for matrix_led) 
+    MATRIX_WIDTH = 64 : MATRIX_WIDTH > 0, //number of LEDs per row in the matrix
+    DATA_WIDTH = 16 : DATA_WIDTH > 0, 
+    DATA_SET = 3 : DATA_SET > 0
+)(
+    input clk,  // clock
+    input rst,  // reset
+    input reload,
+    input new_data[DATA_SET][DATA_WIDTH],
+    
+    output row_address_top[ADDRESS_SIZE],
+    output col_address_top[$clog2(MATRIX_WIDTH)],
+    output we_top,
+    output wd_top[3],
+    
+    output row_address_btm[ADDRESS_SIZE],
+    output col_address_btm[$clog2(MATRIX_WIDTH)],
+    output we_btm,
+    output wd_btm[3],
+    
+    output ready
+) {
+    
+    enum States {START, LOAD_ADDRESS, LOAD_WAIT, LOOP}
+    
+    // 3 triangles, each triangle has 15 pixels, to be rendered at the same coordinates
+    // 1 indicates that pixel in the triangle being ON 
+    // START_DATA[0], START_DATA[1], and START_DATA[2] represents ON/OFF pixels, they are to be rendered at the same place, 
+    // Just like 3 layers of images in the same space when you use Photoshop
+    const START_DATA = {16b0000000000000010, 16b0000001100000000, 16b0111111111111111} // BLUE, GREEN, RED
+    
+    // replace this with row-col mapping to form better-looking shapes
+    // right now, this transform START_DATA[i] into col, row ADDRESSES for the matrix pixels
+    const ADDRESS_MAPPING = {
+        {6d0, 6d0}, //unused
+        {6d9, 6d14},
+        {6d9, 6d12},
+        {6d9, 6d10},
+        {6d9, 6d8},
+        {6d9, 6d6},
+        {6d8, 6d13},
+        {6d8, 6d11},
+        {6d8, 6d9},
+        {6d8, 6d7},
+        {6d7, 6d12},
+        {6d7, 6d10},
+        {6d7, 6d8},
+        {6d6, 6d11},
+        {6d6, 6d9}, // row 6 col 9
+        {6d5, 6d10} // row 5, col 10
+    }
+    
+    // the start data is 16 bit wide
+    // each bit represents whether a certain pixel in the matrix is ON or OFF, positional 
+    // this dff looks at the START_DATA[i] bit by bit, and use ADDRESS_MAPPING to find row, col address for the matrix for that bit 
+    dff bitloader[$clog2(DATA_WIDTH)](#INIT(0), .clk(clk), .rst(rst))
+    
+    dff data[DATA_SET][DATA_WIDTH](.clk(clk), .rst(rst)) 
+    
+    dff data_bottom_col_address[$clog2(MATRIX_WIDTH)](#INIT(0),.clk(clk),.rst(rst))
+    dff data_bottom_row_address[ADDRESS_SIZE](#INIT(0),.clk(clk),.rst(rst))
+    dff fsm[$width(States)](.clk(clk), .rst(rst), #INIT(States.START))
+    
+    
+    always {
+        ready = b0
+        we_top = b0
+        we_btm = b0
+        row_address_top = 0
+        row_address_btm = 0
+        col_address_top = 0
+        col_address_btm = 0
+        wd_top = 0
+        wd_btm = 0
+        
+        fsm.d = fsm.q
+        data_bottom_col_address.d = data_bottom_col_address.q
+        data_bottom_row_address.d = data_bottom_row_address.q
+        data.d = data.q
+        bitloader.d = bitloader.q
+        
+        
+        
+        case(fsm.q){
+            States.START:
+                data.d = START_DATA
+                fsm.d = States.LOAD_ADDRESS
+            
+            States.LOAD_ADDRESS:
+                row_address_top = ADDRESS_MAPPING[bitloader.q][1] // ROW ADDRESS bits, e.g: 4 bits for 32x64 matrix (top half, bottom half)
+                col_address_top = ADDRESS_MAPPING[bitloader.q][0]
+                
+                row_address_btm = data_bottom_row_address.q
+                col_address_btm = data_bottom_col_address.q
+                
+                // color accordingly
+                wd_top = b000
+                wd_btm = b111 // white
+                if (data.q[2][bitloader.q] == 1){ // START_DATA[2] is rendered on top of START_DATA[1] and START_DATA[0]
+                    wd_top = b100 // the third triangle BLUE pixels, takes the most precedence
+                    wd_btm = b100
+                }
+                else if (data.q[1][bitloader.q] == 1){
+                    wd_top = b010 // the second triangle GREEN pixels
+                    wd_btm = b010
+                }
+                else if (data.q[0][bitloader.q] == 1){ // START_DATA[0] is rendered at the bottom
+                    wd_top = b001 // the first triangle has RED pixels, takes the least precedence
+                    wd_btm = b001
+                }
+                
+                we_top = b1
+                we_btm = b1
+                fsm.d = States.LOAD_WAIT
+                if (&bitloader.q == 1){
+                    bitloader.d = 0
+                    fsm.d = States.LOOP
+                }
+                
+                // advance row after bottom address has reach all 1
+                // this cant go to LOAD_WAIT because it is possible that we don't go to LOAD WAIT but LOOP instead when data_bottom_col_address is all 1
+                if (&data_bottom_col_address.q){
+                    data_bottom_row_address.d = data_bottom_row_address.q + 1
+                }
+            
+            States.LOAD_WAIT:
+                //advance write address by 1
+                bitloader.d = bitloader.q + 1
+                data_bottom_col_address.d = data_bottom_col_address.q + 1
+                
+                fsm.d = States.LOAD_ADDRESS
+            
+            States.LOOP:
+                //provide output from ram after writing is done
+                ready = 1
+                fsm.d = States.LOOP
+                if (reload){
+                    // advance bottom col for next time
+                    data_bottom_col_address.d = data_bottom_col_address.q + 1
+                    data.d = new_data
+                    fsm.d = States.LOAD_ADDRESS
+                }
+        }
+        
+        
+    }
+}

@@ -1,0 +1,92 @@
+module alchitry_top (
+    input clk,              // 100MHz clock
+    input rst_n,            // reset button (active low)
+    output led[8],          // 8 user controllable LEDs
+    input usb_rx,           // USB->Serial input
+    output usb_tx,          // USB->Serial output
+    output io_led[3][8],    // LEDs on IO Shield
+    output io_segment[8],   // 7-segment LEDs on IO Shield
+    output io_select[4],    // Digit select on IO Shield
+    input io_button[5],     // 4 buttons on IO Shield
+    input io_dip[3][8],      // DIP switches on IO Shield
+    
+    // to matrix. See custom.acf for pins
+    output red0,
+    output green0, 
+    output blue0,
+    output red1,
+    output green1,
+    output blue1,
+    output latch, 
+    output blank, // also known as oe
+    output sclk_out,
+    output address[5] // row address current write to LED matrix
+) {
+    
+    sig rst                 // reset signal
+    
+    .clk(clk) {
+        // The reset conditioner is used to synchronize the reset signal to the FPGA
+        // clock. This ensures the entire FPGA comes out of reset at the same time.
+        reset_conditioner reset_cond
+        .rst(rst){
+            manual_mode manual_mode(.io_button(io_button), .io_dip(io_dip))
+            ram_mode ram_mode(.io_button(io_button), .io_dip(io_dip))
+        }
+    }
+    
+    always {
+        reset_cond.in = ~rst_n  // input raw inverted reset signal
+        rst = reset_cond.out    // conditioned reset
+        
+        led = 8h00              // turn LEDs off
+        
+        usb_tx = usb_rx         // loop serial port
+        
+        io_led = 3x{{8h00}}
+        io_segment = 8hff
+        io_select = 4hf
+        
+        red0 = 0 
+        red1 = 0 
+        green0 = 0
+        green1 = 0 
+        blue0 = 0
+        blue1 = 0
+        latch = 0
+        blank = 0
+        address = 0
+        sclk_out = 0
+        
+        case (io_dip[2][1:0]){
+            0 :
+                io_led = manual_mode.io_led
+                led = manual_mode.led 
+                red0 = manual_mode.red0
+                red1 = manual_mode.red1 
+                green0 = manual_mode.green0 
+                green1 = manual_mode.green1 
+                blue0 = manual_mode.blue0 
+                blue1 = manual_mode.blue1 
+                latch = manual_mode.latch 
+                blank = manual_mode.blank 
+                address = manual_mode.address 
+                sclk_out = manual_mode.sclk_out
+            1:
+                io_led = ram_mode.io_led
+                led = ram_mode.led 
+                red0 = ram_mode.red0
+                red1 = ram_mode.red1 
+                green0 = ram_mode.green0 
+                green1 = ram_mode.green1 
+                blue0 = ram_mode.blue0 
+                blue1 = ram_mode.blue1 
+                latch = ram_mode.latch 
+                blank = ram_mode.blank 
+                address = ram_mode.address 
+                sclk_out = ram_mode.sclk_out
+            
+        }
+        
+    }
+}
