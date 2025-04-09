@@ -172,3 +172,9 @@ You can move the player using the following io buttons:
 Note that `io_button[4]` can't be used because we are using its port for the output signal on C bank.
 
 The player is clamped to not go off-screen in a 32x64 matrix.
+
+**The two dots**: **white** and **green** indicate address 0,0 of each top half and second half. These are drawn to know the orientation of the matrix.
+
+#### Coordinate System
+
+The coordinate system is 0,0 at the top left, and 31,63 at the bottom right pixel, but we do additional processing to map it to bottom half and top half since the scan rate is 1/16 (two lines rendered at a time).
