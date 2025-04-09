@@ -2,7 +2,7 @@
 // You dont have to understand what data is specifically made, except to load data to our matrix_ram
 // DO NOT COPY this module blindly, it's not meant for general purpose
 
-module ram_writer #(
+module ram_writer_triangle_demo #(
     // 32 by 64 LED matrix by default, separated into top-16 rows and bottom 16-rows
     // both halves row i are written together for all rows 0 to 15 in a rapid loop 
     ADDRESS_SIZE = 4 : ADDRESS_SIZE > 0, //width of the address field (ABCD signals for matrix_led) 
@@ -125,7 +125,8 @@ module ram_writer #(
                 }
                 
                 // advance row after bottom address has reach all 1
-                // this cant go to LOAD_WAIT because it is possible that we don't go to LOAD WAIT but LOOP instead when data_bottom_col_address is all 1
+                // this cant go to LOAD_WAIT because it is possible that we don't go to LOAD WAIT but LOOP instead when 
+                // data_bottom_col_address is all 1
                 if (&data_bottom_col_address.q){
                     data_bottom_row_address.d = data_bottom_row_address.q + 1
                 }

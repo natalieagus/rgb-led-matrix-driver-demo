@@ -1,4 +1,4 @@
-module ram_mode (
+module ram_triangle_mode (
     input clk,              // 100MHz clock
     input rst,            // reset button (active low)
     output led[8],          // 8 user controllable LEDs
@@ -34,7 +34,7 @@ module ram_mode (
         .rst(rst){
             // ramwriter ---> matrixram ---> driver ---> hardware
             rgb_led_matrix_driver driver
-            ram_writer ramwriter(#DATA_WIDTH(16))
+            ram_writer_triangle_demo ram_writer_triangle_demo(#DATA_WIDTH(16))
             matrix_ram matrixram
             
             dff red_triangle[16](#INIT(0))
@@ -78,20 +78,20 @@ module ram_mode (
         reload_button_edge_detector.in = reload_button_cond.out
         
         // when io_button[0] is pressed, we reload the new data in
-        ramwriter.reload = reload_button_edge_detector.out 
-        ramwriter.new_data = {blue_triangle.q, green_triangle.q, red_triangle.q} 
+        ram_writer_triangle_demo.reload = reload_button_edge_detector.out 
+        ram_writer_triangle_demo.new_data = {blue_triangle.q, green_triangle.q, red_triangle.q} 
         
-        matrixram.row_address_top = ramwriter.row_address_top
-        matrixram.col_address_top = ramwriter.col_address_top
-        matrixram.we_top = ramwriter.we_top
-        matrixram.wd_top = ramwriter.wd_top
+        matrixram.row_address_top = ram_writer_triangle_demo.row_address_top
+        matrixram.col_address_top = ram_writer_triangle_demo.col_address_top
+        matrixram.we_top = ram_writer_triangle_demo.we_top
+        matrixram.wd_top = ram_writer_triangle_demo.wd_top
         
-        matrixram.row_address_btm = ramwriter.row_address_btm
-        matrixram.col_address_btm = ramwriter.col_address_btm
-        matrixram.we_btm = ramwriter.we_btm
-        matrixram.wd_btm = ramwriter.wd_btm
+        matrixram.row_address_btm = ram_writer_triangle_demo.row_address_btm
+        matrixram.col_address_btm = ram_writer_triangle_demo.col_address_btm
+        matrixram.we_btm = ram_writer_triangle_demo.we_btm
+        matrixram.wd_btm = ram_writer_triangle_demo.wd_btm
         
-        matrixram.ready = ramwriter.ready
+        matrixram.ready = ram_writer_triangle_demo.ready
         
         matrixram.row_address = driver.row_index
         matrixram.col_address = driver.col_index

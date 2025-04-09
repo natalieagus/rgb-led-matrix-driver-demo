@@ -1,0 +1,143 @@
+module ram_player_mode (
+    input clk,              // 100MHz clock
+    input rst,            // reset button (active low)
+    output led[8],          // 8 user controllable LEDs
+    output io_led[3][8],    // LEDs on IO Shield
+    output io_segment[8],   // 7-segment LEDs on IO Shield
+    output io_select[4],    // Digit select on IO Shield
+    input io_button[5],     // 4 buttons on IO Shield
+    input io_dip[3][8],      // DIP switches on IO Shield
+    
+    // to matrix. See custom.acf for pins
+    output red0,
+    output green0, 
+    output blue0,
+    output red1,
+    output green1,
+    output blue1,
+    output latch, 
+    output blank, // also known as oe
+    output sclk_out,
+    output address[5] // row address current write to LED matrix
+) {
+    
+    
+    
+    const CLK_FREQ = $is_sim() ? 1000 : 100000000
+    
+    .clk(clk) {
+        button_conditioner player_movement_conditioner[4](#CLK_FREQ(4x{{CLK_FREQ}}),.in({io_button[1], io_button[3], io_button[2], io_button[0]}))
+        edge_detector player_movement_edge_detector[4](#RISE(4x{{1}}), #FALL(4x{{0}}), .in(player_movement_conditioner.out))
+        .rst(rst){
+            // ram writer ---> matrix ram ---> driver ---> hardware
+            rgb_led_matrix_driver driver
+            ram_writer_player_demo ram_writer_player_demo
+            matrix_ram matrixram     
+            
+            dff player_x_position[6](#INIT(5))
+            dff player_y_position[5](#INIT(20))
+        }
+        
+    }
+    
+    always {
+        
+        led = 8h00             // turn LEDs off
+        
+        io_led = 3x{{8h00}}    // turn LEDs off
+        io_segment = 8hff          // turn segments off
+        io_select = 4hf           // select no digits
+        
+        player_x_position.d = player_x_position.q 
+        player_y_position.d = player_y_position.q 
+        
+        ram_writer_player_demo.reload = 0 // does not reload by default 
+
+        // move up
+        if (player_movement_edge_detector.out[0]){
+            // io_button[0] is pressed, move up
+            if (|player_y_position.q){
+                player_y_position.d = player_y_position.q - 1
+            }
+        } 
+        // move down
+        if (player_movement_edge_detector.out[1]){
+            // io_button[2] is pressed, move down 
+            if (player_y_position.q != 5b11101){
+                player_y_position.d = player_y_position.q + 1
+            }
+        }  
+        
+        // move left
+        if (player_movement_edge_detector.out[2]){
+            // io_button[3] is pressed, move left
+            if (|player_x_position.q){
+                player_x_position.d = player_x_position.q - 1
+            }
+        }      
+        // move right
+        if (player_movement_edge_detector.out[3]){
+            // io_button[1] is pressed, move right 
+            if (player_x_position.q != 6b111100){
+                player_x_position.d = player_x_position.q + 1
+            }
+        }
+        
+        if (|player_movement_edge_detector.out){
+            ram_writer_player_demo.reload = 1
+        }
+        
+        // ------ CUSTOM DATA LOADING, prepare some data to be loaded to matrix_ram ------- // 
+        
+        // when io_button[0] is pressed, we reload the new data in
+        ram_writer_player_demo.player_location_x = player_x_position.q 
+        ram_writer_player_demo.player_location_y = player_y_position.q
+
+        
+        matrixram.row_address_top = ram_writer_player_demo.row_address_top
+        matrixram.col_address_top = ram_writer_player_demo.col_address_top
+        matrixram.we_top = ram_writer_player_demo.we_top
+        matrixram.wd_top = ram_writer_player_demo.wd_top
+        
+        matrixram.row_address_btm = ram_writer_player_demo.row_address_btm
+        matrixram.col_address_btm = ram_writer_player_demo.col_address_btm
+        matrixram.we_btm = ram_writer_player_demo.we_btm
+        matrixram.wd_btm = ram_writer_player_demo.wd_btm
+        
+        matrixram.ready = ram_writer_player_demo.ready
+        
+        matrixram.row_address = driver.row_index
+        matrixram.col_address = driver.col_index
+        
+        // connect matrixram with matrixwriter to push the pixel values out to the matrix
+        driver.data = c{matrixram.bottom_out, matrixram.top_out}
+        // ------ END of CUSTOM data LOADING ------- // 
+        
+        red0 = driver.red0
+        red1 = driver.red1
+        green0 = driver.green0
+        green1 = driver.green1
+        blue0 = driver.blue0
+        blue1 = driver.blue1
+        latch = driver.latch
+        sclk_out = driver.sclk_out
+        blank = driver.blank
+        address = driver.address
+        
+        led[3:0] = driver.address
+        led[7] = driver.sclk_out
+        io_led[0][0] = driver.red0
+        io_led[0][1] = driver.green0
+        io_led[0][2] = driver.blue0
+        io_led[0][3] = driver.red1
+        io_led[0][4] = driver.green1
+        io_led[0][5] = driver.blue1
+        
+        io_led[0][2:0] = matrixram.top_out
+        io_led[0][5:3] = matrixram.bottom_out
+         
+        io_led[1] = player_x_position.q
+        io_led[2] = player_y_position.q
+        
+    }
+}

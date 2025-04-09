@@ -43,18 +43,6 @@
             },
             {
                 "file": {
-                    "type": "DiskFile",
-                    "path": "source/ram_writer.luc"
-                }
-            },
-            {
-                "file": {
-                    "type": "DiskFile",
-                    "path": "source/ram_mode.luc"
-                }
-            },
-            {
-                "file": {
                     "type": "Component",
                     "path": "Miscellaneous/pipeline.luc"
                 }
@@ -69,6 +57,30 @@
                 "file": {
                     "type": "Component",
                     "path": "Pulses/edge_detector.luc"
+                }
+            },
+            {
+                "file": {
+                    "type": "DiskFile",
+                    "path": "source/ram_writer_player_demo.luc"
+                }
+            },
+            {
+                "file": {
+                    "type": "DiskFile",
+                    "path": "source/ram_writer_triangle_demo.luc"
+                }
+            },
+            {
+                "file": {
+                    "type": "DiskFile",
+                    "path": "source/ram_player_mode.luc"
+                }
+            },
+            {
+                "file": {
+                    "type": "DiskFile",
+                    "path": "source/ram_triangle_mode.luc"
                 }
             }
         ],

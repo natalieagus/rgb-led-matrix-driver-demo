@@ -72,7 +72,8 @@ If you're using a RAM to drive the `matrix_writer`, you may use its output: `row
 There are two modes in the demo, manual and ram mode. It depends on `io_dip[2][1:0]`:
 
 1. 0: static mode, all LED to blue color
-2. 1: ram mode, you can dynamically set the colors of the LEDs
+2. 1: ram triangle mode, you can dynamically set the colors of the LEDs in a triangular fashion (custom, please don't copy)
+3. 2: ram player mode, you can move a player block using `io_button[3:0]`
 
 ### Manual mode
 
@@ -80,7 +81,7 @@ When compiled and loaded, you should see that all pixels are set to **blue** col
 
 ![alt](images/static.png)
 
-### RAM mode
+### RAM Triangle mode
 
 This mode is created to demonstrate how we can write to a RAM and continuously read it to render the output at the matrix.
 
@@ -154,3 +155,20 @@ If you set them to turn on at the same location, it will take this precedence: b
 Therefore, setting red as: `0000 0000 0000 1111`, and green as `0000 0000 0000 0011` and blue as `0000 0000 0000 1010` will result in a green dot at position 0, blue dot at position 1 and 3, and red dot at position 2.
 
 The bottom half will show all the flattened past triangles you have created.
+
+### Ram Player Mode
+
+When compiled and loaded, you should see a 3x3 player sprite in red:
+
+![alt](images/ram-player-mode.png)
+
+You can move the player using the following io buttons:
+
+1. up: `io_button[0]`
+1. down: `io_button[2]`
+1. left: `io_button[3]`
+1. right: `io_button[1]`
+
+Note that `io_button[4]` can't be used because we are using its port for the output signal on C bank.
+
+The player is clamped to not go off-screen in a 32x64 matrix.

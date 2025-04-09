@@ -1,0 +1,208 @@
+// This module is a custom module to load specific data to the RAM
+// You dont have to understand what data is specifically made, except to load data to our matrix_ram
+// DO NOT COPY this module blindly, it's not meant for general purpose
+
+// this module writes a player sprite
+// the player sprite is a simple 3x3 square 
+// this module receives the coordinate of the top left of the player sprite
+// it will then systematically draw the remaining 8 pixels of the player sprite
+module ram_writer_player_demo #(
+    // 32 by 64 LED matrix by default, separated into top-16 rows and bottom 16-rows
+    // both halves row i are written together for all rows 0 to 15 in a rapid loop 
+    ADDRESS_SIZE = 4 : ADDRESS_SIZE > 0, // width of the address field (ABCD signals for matrix_led) 
+    MATRIX_WIDTH = 64 : MATRIX_WIDTH > 0, // # columns: number of LEDs per row in the matrix
+    MATRIX_LENGTH = 32 : MATRIX_LENGTH > 0 // # rows
+    // DATA_SET = 3 : DATA_SET > 0
+)(
+    input clk,  // clock
+    input rst,  // reset
+    input reload,
+    input player_location_x[$clog2(MATRIX_WIDTH)], // x coordinate of player, top left square, depends on columns
+    input player_location_y[$clog2(MATRIX_LENGTH)], // y coordinate of player, bottom left square, depends on rows
+    
+    output row_address_top[ADDRESS_SIZE],
+    output col_address_top[$clog2(MATRIX_WIDTH)],
+    output we_top,
+    output wd_top[3],
+    
+    output row_address_btm[ADDRESS_SIZE],
+    output col_address_btm[$clog2(MATRIX_WIDTH)],
+    output we_btm,
+    output wd_btm[3],
+    
+    output ready
+) {
+    
+    enum States {CLEAR, IDLE, INIT, DRAW_PLAYER, CAPTURE_INITIAL_PLAYER}
+    
+    const PLAYER_COLOR = b001 // red for player location 
+    
+    dff fsm[$width(States)](.clk(clk), .rst(rst), #INIT(States.CAPTURE_INITIAL_PLAYER))
+    dff data_bottom_col_address[$clog2(MATRIX_WIDTH)](#INIT(0),.clk(clk),.rst(rst))
+    dff data_bottom_row_address[ADDRESS_SIZE](#INIT(0),.clk(clk),.rst(rst))
+    dff data_top_col_address[$clog2(MATRIX_WIDTH)](#INIT(0),.clk(clk),.rst(rst))
+    dff data_top_row_address[ADDRESS_SIZE](#INIT(0),.clk(clk),.rst(rst))
+    
+    dff reload_buffer(.clk(clk), .rst(rst), #INIT(0))
+    
+    dff player_location_x_buffer[$clog2(MATRIX_WIDTH)](.clk(clk), .rst(rst))
+    dff player_location_y_buffer[$clog2(MATRIX_LENGTH)](.clk(clk), .rst(rst))
+    
+    dff player_drawing_pointer[4](.clk(clk), .rst(rst), #INIT(0))
+    
+    sig player_sprites_x[9][$clog2(MATRIX_WIDTH)]
+    sig player_sprites_y[9][$clog2(MATRIX_LENGTH)]
+    
+    always {
+        ready = b0
+        we_top = b0
+        we_btm = b0
+        row_address_top = 0
+        row_address_btm = 0
+        col_address_top = 0
+        col_address_btm = 0
+        wd_top = 0
+        wd_btm = 0
+        
+        fsm.d = fsm.q
+        data_top_col_address.d = data_top_col_address.q 
+        data_top_row_address.d = data_top_row_address.q 
+        data_bottom_col_address.d = data_bottom_col_address.q
+        data_bottom_row_address.d = data_bottom_row_address.q
+        
+        player_location_x_buffer.d = player_location_x_buffer.q
+        player_location_y_buffer.d = player_location_y_buffer.q
+        player_drawing_pointer.d = player_drawing_pointer.q
+        
+        reload_buffer.d = reload_buffer.q 
+        // set it if it is 0
+        // this is to catch async reload request
+        if (~reload_buffer.q){
+            reload_buffer.d = reload
+        }
+        
+        // hardcode the sprite in the simplest way possible
+        player_sprites_x[0] = player_location_x_buffer.q
+        player_sprites_x[1] = player_location_x_buffer.q + 1
+        player_sprites_x[2] = player_location_x_buffer.q + 2
+        player_sprites_x[3] = player_location_x_buffer.q
+        player_sprites_x[4] = player_location_x_buffer.q + 1
+        player_sprites_x[5] = player_location_x_buffer.q + 2
+        player_sprites_x[6] = player_location_x_buffer.q
+        player_sprites_x[7] = player_location_x_buffer.q + 1
+        player_sprites_x[8] = player_location_x_buffer.q + 2
+        
+        player_sprites_y[0] = player_location_y_buffer.q
+        player_sprites_y[1] = player_location_y_buffer.q 
+        player_sprites_y[2] = player_location_y_buffer.q 
+        player_sprites_y[3] = player_location_y_buffer.q + 1
+        player_sprites_y[4] = player_location_y_buffer.q + 1
+        player_sprites_y[5] = player_location_y_buffer.q + 1
+        player_sprites_y[6] = player_location_y_buffer.q + 2
+        player_sprites_y[7] = player_location_y_buffer.q + 2
+        player_sprites_y[8] = player_location_y_buffer.q + 2
+        
+        case(fsm.q){
+            States.CAPTURE_INITIAL_PLAYER:
+                player_location_x_buffer.d = player_location_x 
+                player_location_y_buffer.d = player_location_y
+                fsm.d = States.INIT
+            
+            States.INIT: 
+                // to draw initial values to know orientation, remove if irrelevant
+                row_address_top = data_top_row_address.q
+                col_address_top = data_top_col_address.q
+                row_address_btm = data_bottom_row_address.q
+                col_address_btm = data_bottom_col_address.q
+                wd_top = b111 // draw white dot on 0,0
+                wd_btm = b010 // draw green dot on halfway mark   
+                
+                we_top = b1
+                we_btm = b1
+                
+                fsm.d = States.DRAW_PLAYER
+            
+            States.DRAW_PLAYER: 
+                
+                // this state draws the top left pixel of a player sprite
+                // check whether player is in top or bottom half 
+                if (player_sprites_y[player_drawing_pointer.q] < MATRIX_LENGTH >> 1){
+                    // top half 
+                    row_address_top = player_sprites_y[player_drawing_pointer.q]
+                    col_address_top = player_sprites_x[player_drawing_pointer.q]
+                    we_top = 1 
+                    wd_top = PLAYER_COLOR
+                }
+                else{
+                    // bottom half 
+                    row_address_btm = player_sprites_y[player_drawing_pointer.q]
+                    col_address_btm = player_sprites_x[player_drawing_pointer.q]
+                    we_btm = 1 
+                    wd_btm = PLAYER_COLOR 
+                }
+                
+                // increment the pointer
+                player_drawing_pointer.d = player_drawing_pointer.q + 1
+                
+                if (player_drawing_pointer.q == b1000){ // when all 9 sprites are drawn
+                    // reset pointer
+                    player_drawing_pointer.d = 0
+                    fsm.d = States.IDLE
+                }
+            
+            States.CLEAR:
+                
+                row_address_top = data_top_row_address.q
+                col_address_top = data_top_col_address.q
+                row_address_btm = data_bottom_row_address.q
+                col_address_btm = data_bottom_col_address.q
+                
+                wd_top = 0
+                wd_btm = 0    
+                
+                we_top = b1
+                we_btm = b1
+                
+                //advance column write address by 1
+                data_top_col_address.d = data_top_col_address.q + 1
+                data_bottom_col_address.d = data_bottom_col_address.q + 1
+                
+                // advance row if column address has reached all 1
+                if (&data_bottom_col_address.q){
+                    data_bottom_row_address.d = data_bottom_row_address.q + 1
+                }
+                
+                if (&data_top_col_address.q){
+                    data_top_row_address.d = data_bottom_row_address.q + 1
+                }      
+                
+                // if we are done, go to DRAW and reset the write pointers
+                if (&data_top_row_address.q & &data_bottom_row_address.q & &data_bottom_col_address.q & &data_top_col_address.q){
+                    data_top_row_address.d = 0
+                    data_top_col_address.d = 0
+                    data_bottom_col_address.d = 0
+                    data_bottom_row_address.d = 0
+                    fsm.d = States.INIT
+                }
+            
+            States.IDLE:
+                //provide output from ram after writing is done
+                ready = 1
+                fsm.d = States.IDLE
+                if (reload_buffer.q){
+                    // clear col and address ptr 
+                    data_top_row_address.d = 0
+                    data_top_col_address.d = 0
+                    data_bottom_row_address.d = 0
+                    data_bottom_col_address.d = 0
+                    reload_buffer.d = 0 // clear reload flag
+                    // capture player x and y input
+                    player_location_x_buffer.d = player_location_x 
+                    player_location_y_buffer.d = player_location_y
+                    fsm.d = States.CLEAR
+                }
+        }
+        
+        
+    }
+}

@@ -31,7 +31,8 @@ module alchitry_top (
         reset_conditioner reset_cond
         .rst(rst){
             manual_mode manual_mode(.io_button(io_button), .io_dip(io_dip))
-            ram_mode ram_mode(.io_button(io_button), .io_dip(io_dip))
+            ram_triangle_mode ram_triangle_mode(.io_button(io_button), .io_dip(io_dip))
+            ram_player_mode ram_player_mode(.io_button(io_button), .io_dip(io_dip))
         }
     }
     
@@ -73,18 +74,31 @@ module alchitry_top (
                 address = manual_mode.address 
                 sclk_out = manual_mode.sclk_out
             1:
-                io_led = ram_mode.io_led
-                led = ram_mode.led 
-                red0 = ram_mode.red0
-                red1 = ram_mode.red1 
-                green0 = ram_mode.green0 
-                green1 = ram_mode.green1 
-                blue0 = ram_mode.blue0 
-                blue1 = ram_mode.blue1 
-                latch = ram_mode.latch 
-                blank = ram_mode.blank 
-                address = ram_mode.address 
-                sclk_out = ram_mode.sclk_out
+                io_led = ram_triangle_mode.io_led
+                led = ram_triangle_mode.led 
+                red0 = ram_triangle_mode.red0
+                red1 = ram_triangle_mode.red1 
+                green0 = ram_triangle_mode.green0 
+                green1 = ram_triangle_mode.green1 
+                blue0 = ram_triangle_mode.blue0 
+                blue1 = ram_triangle_mode.blue1 
+                latch = ram_triangle_mode.latch 
+                blank = ram_triangle_mode.blank 
+                address = ram_triangle_mode.address 
+                sclk_out = ram_triangle_mode.sclk_out
+            2:
+                io_led = ram_player_mode.io_led
+                led = ram_player_mode.led 
+                red0 = ram_player_mode.red0
+                red1 = ram_player_mode.red1 
+                green0 = ram_player_mode.green0 
+                green1 = ram_player_mode.green1 
+                blue0 = ram_player_mode.blue0 
+                blue1 = ram_player_mode.blue1 
+                latch = ram_player_mode.latch 
+                blank = ram_player_mode.blank 
+                address = ram_player_mode.address 
+                sclk_out = ram_player_mode.sclk_out
             
         }
         
